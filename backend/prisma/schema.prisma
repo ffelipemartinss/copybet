@@ -1,0 +1,190 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String    @id @default(cuid())
+  email               String    @unique
+  senha_hash          String
+  nome                String
+  role                Role      @default(SEGUIDOR)
+  indicado_por        IndicadoPor @default(COPYBET)
+  analista_id_afiliado String?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+
+  analista   Analista?
+  seguidor   Seguidor?
+  plano      Plano?
+}
+
+model Analista {
+  id           String  @id @default(cuid())
+  user_id      String  @unique
+  bio          String?
+  especialidade String?
+  foto_url     String?
+
+  // Stats 1 unidade
+  stats_1u_win_rate          Float @default(0)
+  stats_1u_rendimento_mes    Float @default(0)
+  stats_1u_rendimento_total  Float @default(0)
+  stats_1u_total_sinais      Int   @default(0)
+
+  // Stats 0.5 unidade
+  stats_05u_win_rate         Float @default(0)
+  stats_05u_rendimento_mes   Float @default(0)
+  stats_05u_rendimento_total Float @default(0)
+  stats_05u_total_sinais     Int   @default(0)
+
+  // Stats 0.25 unidade
+  stats_025u_win_rate         Float @default(0)
+  stats_025u_rendimento_mes   Float @default(0)
+  stats_025u_rendimento_total Float @default(0)
+  stats_025u_total_sinais     Int   @default(0)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user              User                @relation(fields: [user_id], references: [id])
+  sinais            Sinal[]
+  seguidores        Seguidor[]
+  fechamentos       FechamentoMensal[]
+}
+
+model Seguidor {
+  id           String  @id @default(cuid())
+  user_id      String  @unique
+  analista_id  String?
+
+  unidade_valor  Float   @default(10)
+  aceita_1u      Boolean @default(true)
+  aceita_0_5u    Boolean @default(true)
+  aceita_0_25u   Boolean @default(false)
+  ativo          Boolean @default(false)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user      User       @relation(fields: [user_id], references: [id])
+  analista  Analista?  @relation(fields: [analista_id], references: [id])
+  execucoes Execucao[]
+}
+
+model Sinal {
+  id           String       @id @default(cuid())
+  analista_id  String
+  casa         String
+  evento       String
+  mercado      String
+  odd          Float
+  tipo_unidade TipoUnidade  @default(U1)
+  status       StatusSinal  @default(PENDENTE)
+  resultado    ResultadoSinal?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  analista  Analista   @relation(fields: [analista_id], references: [id])
+  execucoes Execucao[]
+}
+
+model Execucao {
+  id           String         @id @default(cuid())
+  sinal_id     String
+  seguidor_id  String
+  valor_apostado Float
+  status       StatusExecucao @default(PENDENTE)
+  lucro_prejuizo Float?
+  erro_msg     String?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  sinal    Sinal    @relation(fields: [sinal_id], references: [id])
+  seguidor Seguidor @relation(fields: [seguidor_id], references: [id])
+}
+
+model Plano {
+  id                   String      @id @default(cuid())
+  user_id              String      @unique
+  status               StatusPlano @default(INATIVO)
+  valor_mensalidade    Float       @default(99.90)
+  data_inicio          DateTime?
+  data_vencimento      DateTime?
+  stripe_subscription_id String?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user User @relation(fields: [user_id], references: [id])
+}
+
+model FechamentoMensal {
+  id                     String              @id @default(cuid())
+  data_fechamento        DateTime
+  analista_id            String
+  qtd_seguidores_ativos  Int
+  valor_total_mensalidades Float
+  percentual_comissao    Float               @default(0.30)
+  valor_comissao         Float
+  status_pagamento       StatusPagamento     @default(PENDENTE)
+
+  created_at DateTime @default(now())
+
+  analista Analista @relation(fields: [analista_id], references: [id])
+}
+
+// Enums
+enum Role {
+  SEGUIDOR
+  ANALISTA
+  ADMIN
+}
+
+enum IndicadoPor {
+  ANALISTA
+  COPYBET
+}
+
+enum TipoUnidade {
+  U1
+  U05
+  U025
+}
+
+enum StatusSinal {
+  PENDENTE
+  ATIVO
+  ENCERRADO
+}
+
+enum ResultadoSinal {
+  GANHOU
+  PERDEU
+  VOID
+}
+
+enum StatusExecucao {
+  PENDENTE
+  EXECUTANDO
+  SUCESSO
+  FALHA
+}
+
+enum StatusPlano {
+  ATIVO
+  INATIVO
+  CANCELADO
+}
+
+enum StatusPagamento {
+  PENDENTE
+  PAGO
+  CANCELADO
+}

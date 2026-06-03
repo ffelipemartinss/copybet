@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>CopyBet</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; width: 280px; padding: 20px; background: #0f172a; color: #f1f5f9; }
+
+    h2 { font-size: 20px; color: #38bdf8; margin-bottom: 16px; }
+
+    /* Login */
+    #tela-login input {
+      width: 100%; padding: 9px 10px; margin-bottom: 10px;
+      border: 1px solid #334155; border-radius: 6px;
+      background: #1e293b; color: #f1f5f9; font-size: 13px;
+    }
+    #tela-login input:focus { outline: none; border-color: #38bdf8; }
+    #btn-login { width: 100%; padding: 10px; background: #38bdf8; color: #0f172a; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; }
+    #btn-login:hover { background: #7dd3fc; }
+    #erro-login { color: #f87171; font-size: 12px; margin-top: 8px; min-height: 16px; }
+
+    /* Dashboard */
+    #tela-dashboard { display: none; }
+    .status-row { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .dot.verde { background: #22c55e; }
+    .dot.vermelho { background: #ef4444; }
+    .dot.amarelo { background: #f59e0b; }
+    .info { font-size: 12px; color: #94a3b8; margin-bottom: 14px; }
+    .btn-toggle { width: 100%; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: bold; margin-bottom: 8px; }
+    .btn-pausar { background: #f59e0b; color: #0f172a; }
+    .btn-ativar { background: #22c55e; color: #0f172a; }
+    #btn-logout { width: 100%; padding: 8px; background: transparent; border: 1px solid #334155; color: #94a3b8; border-radius: 6px; cursor: pointer; font-size: 12px; }
+    #btn-logout:hover { border-color: #f87171; color: #f87171; }
+  </style>
+</head>
+<body>
+  <h2>CopyBet</h2>
+
+  <!-- Tela de Login -->
+  <div id="tela-login">
+    <input type="email" id="input-email" placeholder="E-mail" />
+    <input type="password" id="input-senha" placeholder="Senha" />
+    <button id="btn-login">Entrar</button>
+    <p id="erro-login"></p>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="tela-dashboard">
+    <div class="status-row">
+      <div class="dot" id="dot"></div>
+      <span id="status-texto">Verificando...</span>
+    </div>
+    <p class="info" id="info-texto"></p>
+    <button class="btn-toggle" id="btn-toggle">Carregando...</button>
+    <button id="btn-logout">Sair</button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

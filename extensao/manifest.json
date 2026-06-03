@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "CopyBet",
+  "version": "1.0.0",
+  "description": "Replica apostas automaticamente nas casas de apostas",
+  "permissions": ["storage", "tabs", "scripting"],
+  "host_permissions": [
+    "https://*.betano.com/*",
+    "https://*.bet365.com/*",
+    "https://*.kto.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "CopyBet"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*.betano.com/*"],
+      "js": ["content_betano.js"]
+    },
+    {
+      "matches": ["https://*.bet365.com/*"],
+      "js": ["content_bet365.js"]
+    },
+    {
+      "matches": ["https://*.kto.com/*"],
+      "js": ["content_kto.js"]
+    }
+  ]
+}
