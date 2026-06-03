@@ -1,7 +1,7 @@
 // CopyBet - Content Script Betano
 // Executa a aposta automaticamente quando recebe um sinal
 
-const API_URL = 'https://SEU_RAILWAY_URL'; // substituir no deploy
+const API_URL = 'https://content-inspiration-production-b4b2.up.railway.app'; // substituir no deploy
 
 chrome.storage.local.get(['sinal_pendente', 'token'], ({ sinal_pendente, token }) => {
   if (!sinal_pendente || !token) return;

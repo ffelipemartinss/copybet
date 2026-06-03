@@ -1,4 +1,4 @@
-const API_URL = 'https://SEU_RAILWAY_URL'; // substituir no deploy
+const API_URL = 'https://content-inspiration-production-b4b2.up.railway.app'; // substituir no deploy
 
 const telaLogin = document.getElementById('tela-login');
 const telaDashboard = document.getElementById('tela-dashboard');

@@ -1,7 +1,7 @@
 // CopyBet - background.js (Service Worker)
 // Fase 2: WebSocket com autenticacao JWT
 
-const WS_URL = 'wss://SEU_RAILWAY_URL'; // substituir no deploy
+const WS_URL = 'wss://content-inspiration-production-b4b2.up.railway.app'; // substituir no deploy
 
 let socket = null;
 let usuarioId = null;
