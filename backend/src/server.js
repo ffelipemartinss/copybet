@@ -12,15 +12,21 @@ const analistasRoutes = require('./routes/analistas');
 const app = express();
 const httpServer = http.createServer(app);
 
+const origensPermitidas = [
+  'http://localhost:5173',
+  'https://copybet.vercel.app',
+  process.env.CLIENT_URL,
+].filter(Boolean);
+
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: origensPermitidas,
     methods: ['GET', 'POST'],
   },
 });
 
 // Middlewares
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
+app.use(cors({ origin: origensPermitidas }));
 app.use(express.json());
 
 // Rotas
