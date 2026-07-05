@@ -1,7 +1,7 @@
 // CopyBet - background.js (Service Worker)
 // Fase 2: WebSocket com autenticacao JWT
 
-const WS_URL = 'wss://content-inspiration-production-b4b2.up.railway.app'; // substituir no deploy
+const WS_URL = 'wss://content-inspiration-production-b4b2.up.railway.app/ws';
 
 let socket = null;
 let usuarioId = null;
@@ -78,7 +78,14 @@ async function processarSinal(sinal) {
 
   // Salva o sinal para o content script consumir
   await chrome.storage.local.set({ sinal_pendente: sinal });
-  chrome.tabs.create({ url });
+
+  // Reutiliza aba existente da casa se ja estiver aberta
+  const tabs = await chrome.tabs.query({ url: `${url}*` });
+  if (tabs.length > 0) {
+    chrome.tabs.update(tabs[0].id, { active: true });
+  } else {
+    chrome.tabs.create({ url });
+  }
 }
 
 // Mensagens do popup

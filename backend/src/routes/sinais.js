@@ -72,20 +72,31 @@ router.post('/', autenticar, async (req, res) => {
     // Emite via WebSocket para cada seguidor conectado
     const io = req.app.get('io');
     const usuariosConectados = req.app.get('usuariosConectados');
+    const extensaoConectadas = req.app.get('extensaoConectadas');
 
     for (let i = 0; i < seguidores.length; i++) {
       const seg = seguidores[i];
+      const payload = {
+        tipo: 'sinal',
+        sinal_id: sinal.id,
+        execucao_id: execucoes[i].id,
+        casa: sinal.casa,
+        evento: sinal.evento,
+        mercado: sinal.mercado,
+        odd: sinal.odd,
+        valor_apostado: execucoes[i].valor_apostado,
+      };
+
+      // Painel web (Socket.IO)
       const socketId = usuariosConectados.get(seg.user_id);
       if (socketId) {
-        io.to(socketId).emit('sinal', {
-          sinal_id: sinal.id,
-          execucao_id: execucoes[i].id,
-          casa: sinal.casa,
-          evento: sinal.evento,
-          mercado: sinal.mercado,
-          odd: sinal.odd,
-          valor_apostado: execucoes[i].valor_apostado,
-        });
+        io.to(socketId).emit('sinal', payload);
+      }
+
+      // Extensao de navegador (WebSocket nativo)
+      const extWs = extensaoConectadas?.get(seg.user_id);
+      if (extWs && extWs.readyState === 1) {
+        extWs.send(JSON.stringify(payload));
       }
     }
 
@@ -219,10 +230,26 @@ async function recalcularStats(analistaId, tipoUnidade) {
   }
   const rendimentoTotal = totalApostado > 0 ? parseFloat(((totalLucro / totalApostado) * 100).toFixed(2)) : 0;
 
+  // Rendimento do mes atual
+  const inicioMes = new Date();
+  inicioMes.setDate(1);
+  inicioMes.setHours(0, 0, 0, 0);
+
+  const sinaisMes = sinaisEncerrados.filter((s) => new Date(s.created_at) >= inicioMes);
+  let totalApostadoMes = 0;
+  let totalLucroMes = 0;
+  for (const s of sinaisMes) {
+    for (const e of s.execucoes) {
+      totalApostadoMes += e.valor_apostado;
+      totalLucroMes += e.lucro_prejuizo || 0;
+    }
+  }
+  const rendimentoMes = totalApostadoMes > 0 ? parseFloat(((totalLucroMes / totalApostadoMes) * 100).toFixed(2)) : 0;
+
   const campos = {
-    U1: { win: 'stats_1u_win_rate', rend_total: 'stats_1u_rendimento_total', total: 'stats_1u_total_sinais' },
-    U05: { win: 'stats_05u_win_rate', rend_total: 'stats_05u_rendimento_total', total: 'stats_05u_total_sinais' },
-    U025: { win: 'stats_025u_win_rate', rend_total: 'stats_025u_rendimento_total', total: 'stats_025u_total_sinais' },
+    U1:   { win: 'stats_1u_win_rate',   rend_total: 'stats_1u_rendimento_total',   rend_mes: 'stats_1u_rendimento_mes',   total: 'stats_1u_total_sinais' },
+    U05:  { win: 'stats_05u_win_rate',  rend_total: 'stats_05u_rendimento_total',  rend_mes: 'stats_05u_rendimento_mes',  total: 'stats_05u_total_sinais' },
+    U025: { win: 'stats_025u_win_rate', rend_total: 'stats_025u_rendimento_total', rend_mes: 'stats_025u_rendimento_mes', total: 'stats_025u_total_sinais' },
   }[tipoUnidade];
 
   await prisma.analista.update({
@@ -230,6 +257,7 @@ async function recalcularStats(analistaId, tipoUnidade) {
     data: {
       [campos.win]: winRate,
       [campos.rend_total]: rendimentoTotal,
+      [campos.rend_mes]: rendimentoMes,
       [campos.total]: total,
     },
   });
