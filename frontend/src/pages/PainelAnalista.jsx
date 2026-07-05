@@ -4,7 +4,7 @@ import api from '../lib/api';
 import Layout from '../components/Layout';
 import useAuthStore from '../store/authStore';
 
-const CASAS = ['betano', 'bet365', 'kto'];
+const CASAS = ['betfair', 'betano', 'bet365', 'kto'];
 const TIPOS = [
   { value: 'U1', label: '1u — Entrada normal' },
   { value: 'U05', label: '0.5u — Meia entrada' },
@@ -14,7 +14,7 @@ const TIPOS = [
 export default function PainelAnalista() {
   const { usuario, token } = useAuthStore();
   const [sinais, setSinais] = useState([]);
-  const [form, setForm] = useState({ casa: 'betano', evento: '', mercado: '', odd: '', tipo_unidade: 'U1' });
+  const [form, setForm] = useState({ casa: 'betfair', evento: '', mercado: '', odd: '', tipo_unidade: 'U1' });
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState('');
   const [notificacao, setNotificacao] = useState(null);

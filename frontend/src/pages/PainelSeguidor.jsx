@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import { io } from 'socket.io-client';
 import api from '../lib/api';
 import Layout from '../components/Layout';
 import useAuthStore from '../store/authStore';
@@ -10,12 +11,20 @@ const PERIODOS = [
 ];
 
 export default function PainelSeguidor() {
-  const { usuario } = useAuthStore();
+  const { usuario, token } = useAuthStore();
   const [periodo, setPeriodo] = useState('hoje');
   const [historico, setHistorico] = useState(null);
   const [config, setConfig] = useState(null);
   const [salvando, setSalvando] = useState(false);
-  const [aba, setAba] = useState('historico'); // historico | config
+  const [aba, setAba] = useState('sinais'); // sinais | historico | config
+  const [sinaisAtivos, setSinaisAtivos] = useState([]);
+  const [confirmando, setConfirmando] = useState(null); // id da execucao em confirmacao
+  const [toast, setToast] = useState(null);
+  const socketRef = useRef(null);
+
+  useEffect(() => {
+    carregarSinaisAtivos();
+  }, []);
 
   useEffect(() => {
     api.get(`/api/seguidores/historico?periodo=${periodo}`).then(({ data }) => {
@@ -34,41 +43,119 @@ export default function PainelSeguidor() {
     }
   }, [usuario]);
 
+  // Socket.IO: recebe novos sinais em tempo real
+  useEffect(() => {
+    if (!token) return;
+    const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:3001');
+    socketRef.current = socket;
+
+    socket.emit('identificar', usuario?.id);
+
+    socket.on('sinal', (sinal) => {
+      carregarSinaisAtivos();
+      setToast(`Novo sinal: ${sinal.evento} — ODD ${sinal.odd}`);
+      setAba('sinais');
+      setTimeout(() => setToast(null), 6000);
+    });
+
+    return () => socket.disconnect();
+  }, [token]);
+
+  async function carregarSinaisAtivos() {
+    try {
+      const { data } = await api.get('/api/seguidores/sinais-ativos');
+      setSinaisAtivos(data.sinais);
+    } catch {
+      // silencioso
+    }
+  }
+
+  async function confirmarAposta(execucaoId) {
+    setConfirmando(execucaoId);
+    try {
+      await api.patch(`/api/seguidores/sinais/${execucaoId}/confirmar`);
+      setSinaisAtivos((prev) => prev.filter((s) => s.execucao_id !== execucaoId));
+      setToast('Aposta confirmada!');
+      setTimeout(() => setToast(null), 4000);
+    } catch {
+      setToast('Erro ao confirmar aposta.');
+      setTimeout(() => setToast(null), 4000);
+    }
+    setConfirmando(null);
+  }
+
   async function salvarConfig() {
     setSalvando(true);
     try {
       await api.patch('/api/seguidores/configurar', config);
-      alert('Configuracoes salvas!');
+      setToast('Configuracoes salvas!');
+      setTimeout(() => setToast(null), 4000);
     } catch {
-      alert('Erro ao salvar.');
+      setToast('Erro ao salvar configuracoes.');
+      setTimeout(() => setToast(null), 4000);
     }
     setSalvando(false);
   }
+
+  const ABAS = [
+    { id: 'sinais', label: `Sinais${sinaisAtivos.length > 0 ? ` (${sinaisAtivos.length})` : ''}` },
+    { id: 'historico', label: 'Historico' },
+    { id: 'config', label: 'Configuracoes' },
+  ];
 
   return (
     <Layout>
       <h2 className="text-2xl font-bold mb-1">Meu Painel</h2>
       <p className="text-muted text-sm mb-6">Bem-vindo, {usuario?.nome}</p>
 
+      {/* Toast */}
+      {toast && (
+        <div className="bg-sky-900 border border-sky-600 text-sky-300 rounded-xl px-4 py-3 text-sm mb-6">
+          {toast}
+        </div>
+      )}
+
       {/* Abas */}
       <div className="flex gap-2 mb-6">
-        {['historico', 'config'].map((a) => (
+        {ABAS.map((a) => (
           <button
-            key={a}
-            onClick={() => setAba(a)}
+            key={a.id}
+            onClick={() => setAba(a.id)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              aba === a ? 'bg-primary text-dark' : 'bg-card border border-border text-muted hover:border-primary'
+              aba === a.id ? 'bg-primary text-dark' : 'bg-card border border-border text-muted hover:border-primary'
             }`}
           >
-            {a === 'historico' ? 'Historico' : 'Configuracoes'}
+            {a.label}
           </button>
         ))}
       </div>
 
-      {/* Historico */}
+      {/* Aba: Sinais Ativos */}
+      {aba === 'sinais' && (
+        <>
+          {sinaisAtivos.length === 0 ? (
+            <div className="text-center py-16">
+              <p className="text-muted text-lg mb-2">Nenhum sinal ativo no momento</p>
+              <p className="text-muted text-sm">Quando o analista enviar um sinal, ele aparecera aqui automaticamente.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {sinaisAtivos.map((s) => (
+                <SinalCard
+                  key={s.execucao_id}
+                  sinal={s}
+                  confirmando={confirmando === s.execucao_id}
+                  onConfirmar={() => confirmarAposta(s.execucao_id)}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Aba: Historico */}
       {aba === 'historico' && (
         <>
-          {/* Filtro de periodo */}
           <div className="flex gap-2 mb-4">
             {PERIODOS.map((p) => (
               <button
@@ -85,7 +172,6 @@ export default function PainelSeguidor() {
 
           {historico ? (
             <>
-              {/* Resumo */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
                 {[
                   { label: 'Apostas', valor: historico.resumo.total_apostas },
@@ -104,7 +190,6 @@ export default function PainelSeguidor() {
                 ))}
               </div>
 
-              {/* Lista */}
               {historico.execucoes.length === 0 ? (
                 <p className="text-muted text-center py-12">Nenhuma aposta nesse periodo.</p>
               ) : (
@@ -135,7 +220,7 @@ export default function PainelSeguidor() {
         </>
       )}
 
-      {/* Configuracoes */}
+      {/* Aba: Configuracoes */}
       {aba === 'config' && config && (
         <div className="bg-card border border-border rounded-xl p-6 max-w-sm space-y-5">
           <div>
@@ -182,6 +267,63 @@ export default function PainelSeguidor() {
         </div>
       )}
     </Layout>
+  );
+}
+
+function SinalCard({ sinal, confirmando, onConfirmar }) {
+  const retorno = ((sinal.odd - 1) * sinal.valor_apostado).toFixed(2);
+
+  return (
+    <div className="bg-card border border-primary/40 rounded-xl p-5">
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <div>
+          <p className="font-semibold">{sinal.evento}</p>
+          <p className="text-muted text-sm mt-0.5">{sinal.mercado}</p>
+        </div>
+        <span className="text-xs bg-sky-900 text-primary border border-sky-700 px-2 py-0.5 rounded-full shrink-0">
+          Ativo
+        </span>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="bg-dark rounded-lg p-3 text-center">
+          <p className="text-muted text-xs mb-1">ODD</p>
+          <p className="font-bold text-primary">{sinal.odd}</p>
+        </div>
+        <div className="bg-dark rounded-lg p-3 text-center">
+          <p className="text-muted text-xs mb-1">Apostar</p>
+          <p className="font-bold">R$ {sinal.valor_apostado.toFixed(2)}</p>
+        </div>
+        <div className="bg-dark rounded-lg p-3 text-center">
+          <p className="text-muted text-xs mb-1">Retorno</p>
+          <p className="font-bold text-green-400">R$ {retorno}</p>
+        </div>
+      </div>
+
+      <p className="text-muted text-xs mb-4">
+        Casa: <span className="text-white">{sinal.casa}</span>
+        {' · '}Analista: <span className="text-white">{sinal.analista}</span>
+        {' · '}<TipoUnidadeBadge tipo={sinal.tipo_unidade} />
+      </p>
+
+      <div className="flex gap-3">
+        <a
+          href="https://www.betfair.bet.br/exchange/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-1 bg-primary text-dark font-bold py-2 rounded-lg text-sm text-center hover:bg-sky-300 transition-colors"
+        >
+          Apostar no Betfair
+        </a>
+        <button
+          onClick={onConfirmar}
+          disabled={confirmando}
+          className="flex-1 border border-green-600 text-green-400 font-bold py-2 rounded-lg text-sm hover:bg-green-900 transition-colors disabled:opacity-50"
+        >
+          {confirmando ? 'Confirmando...' : 'Confirmei'}
+        </button>
+      </div>
+    </div>
   );
 }
 

@@ -99,4 +99,67 @@ router.get('/historico', autenticar, async (req, res) => {
   }
 });
 
+// GET /api/seguidores/sinais-ativos — sinais abertos que o seguidor ainda precisa apostar
+router.get('/sinais-ativos', autenticar, async (req, res) => {
+  try {
+    const seguidor = await prisma.seguidor.findUnique({ where: { user_id: req.usuario.id } });
+    if (!seguidor) return res.status(403).json({ erro: 'Apenas seguidores' });
+
+    const execucoes = await prisma.execucao.findMany({
+      where: {
+        seguidor_id: seguidor.id,
+        status: 'PENDENTE',
+        sinal: { status: 'ATIVO' },
+      },
+      orderBy: { created_at: 'desc' },
+      include: {
+        sinal: {
+          include: { analista: { include: { user: { select: { nome: true } } } } },
+        },
+      },
+    });
+
+    return res.json({
+      sinais: execucoes.map((e) => ({
+        execucao_id: e.id,
+        sinal_id: e.sinal.id,
+        evento: e.sinal.evento,
+        mercado: e.sinal.mercado,
+        odd: e.sinal.odd,
+        casa: e.sinal.casa,
+        tipo_unidade: e.sinal.tipo_unidade,
+        analista: e.sinal.analista.user.nome,
+        valor_apostado: e.valor_apostado,
+        criado_em: e.created_at,
+      })),
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ erro: 'Erro interno do servidor' });
+  }
+});
+
+// PATCH /api/seguidores/sinais/:execucaoId/confirmar — seguidor confirma que apostou manualmente
+router.patch('/sinais/:execucaoId/confirmar', autenticar, async (req, res) => {
+  try {
+    const seguidor = await prisma.seguidor.findUnique({ where: { user_id: req.usuario.id } });
+    if (!seguidor) return res.status(403).json({ erro: 'Apenas seguidores' });
+
+    const execucao = await prisma.execucao.findUnique({ where: { id: req.params.execucaoId } });
+    if (!execucao || execucao.seguidor_id !== seguidor.id) {
+      return res.status(404).json({ erro: 'Execucao nao encontrada' });
+    }
+
+    await prisma.execucao.update({
+      where: { id: execucao.id },
+      data: { status: 'SUCESSO' },
+    });
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ erro: 'Erro interno do servidor' });
+  }
+});
+
 module.exports = router;
