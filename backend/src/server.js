@@ -5,6 +5,7 @@ const { Server } = require('socket.io');
 const { WebSocketServer } = require('ws');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 
 const authRoutes = require('./routes/auth');
 const sinaisRoutes = require('./routes/sinais');
@@ -31,8 +32,29 @@ const io = new Server(httpServer, {
 app.use(cors({ origin: origensPermitidas }));
 app.use(express.json());
 
+// Necessário no Railway (proxy reverso) para o rate limit enxergar o IP real
+app.set('trust proxy', 1);
+
+const limiteAuth = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { erro: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' },
+});
+
+const limiteGeral = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 300,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { erro: 'Muitas requisicoes. Tente novamente em instantes.' },
+});
+
+app.use('/api', limiteGeral);
+
 // Rotas
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', limiteAuth, authRoutes);
 app.use('/api/sinais', sinaisRoutes);
 app.use('/api/seguidores', seguidoresRoutes);
 app.use('/api/analistas', analistasRoutes);

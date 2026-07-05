@@ -32,6 +32,7 @@ export default function Login() {
             <input
               type="email"
               required
+              autoComplete="email"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               className="w-full bg-dark border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
@@ -42,6 +43,7 @@ export default function Login() {
             <input
               type="password"
               required
+              autoComplete="current-password"
               value={form.senha}
               onChange={(e) => setForm({ ...form, senha: e.target.value })}
               className="w-full bg-dark border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"

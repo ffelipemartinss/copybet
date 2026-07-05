@@ -2,21 +2,28 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = require('../lib/prisma');
+const { cadastroSchema, loginSchema, validar } = require('../lib/validacao');
 
 const router = express.Router();
 
 // POST /api/auth/cadastro
 router.post('/cadastro', async (req, res) => {
   try {
-    const { nome, email, senha, role, analista_id_afiliado } = req.body;
+    const { dados, erros } = validar(cadastroSchema, req.body);
+    if (erros) return res.status(400).json({ erro: erros[0], erros });
 
-    if (!nome || !email || !senha) {
-      return res.status(400).json({ erro: 'Nome, email e senha sao obrigatorios' });
-    }
+    const { nome, email, senha, role, analista_id_afiliado } = dados;
 
     const emailExiste = await prisma.user.findUnique({ where: { email } });
     if (emailExiste) {
       return res.status(400).json({ erro: 'Email ja cadastrado' });
+    }
+
+    if (analista_id_afiliado) {
+      const analistaIndicador = await prisma.analista.findUnique({ where: { id: analista_id_afiliado } });
+      if (!analistaIndicador) {
+        return res.status(400).json({ erro: 'Codigo de indicacao invalido' });
+      }
     }
 
     const senha_hash = await bcrypt.hash(senha, 10);
@@ -50,6 +57,9 @@ router.post('/cadastro', async (req, res) => {
     const token = gerarToken(user);
     return res.status(201).json({ token, usuario: formatarUsuario(user) });
   } catch (err) {
+    if (err.code === 'P2002') {
+      return res.status(400).json({ erro: 'Email ja cadastrado' });
+    }
     console.error(err);
     return res.status(500).json({ erro: 'Erro interno do servidor' });
   }
@@ -58,11 +68,10 @@ router.post('/cadastro', async (req, res) => {
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
   try {
-    const { email, senha } = req.body;
+    const { dados, erros } = validar(loginSchema, req.body);
+    if (erros) return res.status(400).json({ erro: erros[0], erros });
 
-    if (!email || !senha) {
-      return res.status(400).json({ erro: 'Email e senha sao obrigatorios' });
-    }
+    const { email, senha } = dados;
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {

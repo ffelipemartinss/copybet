@@ -11,11 +11,16 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Se 401, limpa sessao
+// Se 401 em rota protegida, limpa a sessao e volta para o login.
+// 401 vindo do proprio login/cadastro significa "credenciais invalidas"
+// e deve ser tratado pela tela — senao o recarregamento apaga o erro.
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    const url = err.config?.url || '';
+    const ehRotaDeAuth = url.includes('/api/auth/login') || url.includes('/api/auth/cadastro');
+
+    if (err.response?.status === 401 && !ehRotaDeAuth) {
       localStorage.removeItem('token');
       window.location.href = '/login';
     }

@@ -9,17 +9,34 @@ import PainelSeguidor from './pages/PainelSeguidor';
 import PainelAnalista from './pages/PainelAnalista';
 
 function RotaProtegida({ children, role }) {
-  const { usuario, token } = useAuthStore();
+  const { usuario, token, inicializado } = useAuthStore();
+
   if (!token) return <Navigate to="/login" />;
+
+  // Ha token mas a sessao ainda esta sendo validada (ex.: F5 na pagina):
+  // segura a decisao de rota ate o /me responder, senao o usuario e expulso.
+  if (!inicializado) {
+    return (
+      <div className="min-h-screen bg-dark flex items-center justify-center">
+        <p className="text-muted text-sm">Carregando...</p>
+      </div>
+    );
+  }
+
   if (role && usuario?.role !== role) return <Navigate to="/" />;
   return children;
 }
 
 export default function App() {
-  const { carregarUsuario, token } = useAuthStore();
+  const { carregarUsuario, marcarInicializado, token } = useAuthStore();
 
   useEffect(() => {
-    if (token) carregarUsuario();
+    if (token) {
+      carregarUsuario();
+    } else {
+      // Sem token nao ha o que validar — libera a renderizacao das rotas
+      marcarInicializado();
+    }
   }, [token]);
 
   return (
