@@ -17,11 +17,19 @@ const pagamentosRoutes = require('./routes/pagamentos');
 const app = express();
 const httpServer = http.createServer(app);
 
-const origensPermitidas = [
-  'http://localhost:5173',
-  'https://copybet.vercel.app',
-  process.env.CLIENT_URL,
-].filter(Boolean);
+const origensPermitidas = (origin, callback) => {
+  const permitidas = [
+    'http://localhost:5173',
+    process.env.CLIENT_URL,
+  ].filter(Boolean);
+
+  // Aceita qualquer subdominio do Vercel e ausencia de origin (ex: Postman, Railway health check)
+  if (!origin || permitidas.includes(origin) || origin.endsWith('.vercel.app')) {
+    callback(null, true);
+  } else {
+    callback(new Error('Bloqueado pelo CORS'));
+  }
+};
 
 const io = new Server(httpServer, {
   cors: {
@@ -29,6 +37,7 @@ const io = new Server(httpServer, {
     methods: ['GET', 'POST'],
   },
 });
+
 
 // Middlewares
 app.use(cors({ origin: origensPermitidas }));
