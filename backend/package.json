@@ -5,7 +5,8 @@
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
-    "start": "prisma db push && node src/server.js",
+    "build": "prisma generate && prisma db push",
+    "start": "node src/server.js",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "db:generate": "prisma generate"
