@@ -8,6 +8,7 @@ const router = express.Router();
 router.get('/', async (req, res) => {
   try {
     const analistas = await prisma.analista.findMany({
+      where: { status: 'APROVADO' },
       include: {
         user: { select: { nome: true } },
         _count: { select: { seguidores: { where: { ativo: true } } } },

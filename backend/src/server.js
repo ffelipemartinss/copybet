@@ -11,6 +11,7 @@ const authRoutes = require('./routes/auth');
 const sinaisRoutes = require('./routes/sinais');
 const seguidoresRoutes = require('./routes/seguidores');
 const analistasRoutes = require('./routes/analistas');
+const feedRoutes = require('./routes/feed');
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -58,6 +59,7 @@ app.use('/api/auth', limiteAuth, authRoutes);
 app.use('/api/sinais', sinaisRoutes);
 app.use('/api/seguidores', seguidoresRoutes);
 app.use('/api/analistas', analistasRoutes);
+app.use('/api/feed', feedRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

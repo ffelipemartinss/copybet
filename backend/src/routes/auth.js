@@ -43,7 +43,7 @@ router.post('/cadastro', async (req, res) => {
 
     // Criar perfil de analista ou seguidor automaticamente
     if (roleValido === 'ANALISTA') {
-      await prisma.analista.create({ data: { user_id: user.id } });
+      await prisma.analista.create({ data: { user_id: user.id, status: 'PENDENTE' } });
     } else {
       await prisma.seguidor.create({
         data: {

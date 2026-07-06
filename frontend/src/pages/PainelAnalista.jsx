@@ -75,6 +75,13 @@ export default function PainelAnalista() {
       <h2 className="text-2xl font-bold mb-1">Painel do Analista</h2>
       <p className="text-muted text-sm mb-6">Bem-vindo, {usuario?.nome}</p>
 
+      {/* Aviso de cadastro pendente */}
+      {usuario?.analista?.status === 'PENDENTE' && (
+        <div className="bg-yellow-900 border border-yellow-600 text-yellow-300 rounded-xl px-4 py-3 text-sm mb-6">
+          Seu cadastro de analista esta em analise. Voce podera enviar sinais assim que for aprovado.
+        </div>
+      )}
+
       {/* Notificacao */}
       {notificacao && (
         <div className="bg-green-900 border border-green-600 text-green-300 rounded-xl px-4 py-3 text-sm mb-6">

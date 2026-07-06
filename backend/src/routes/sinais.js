@@ -20,6 +20,9 @@ router.post('/', autenticar, async (req, res) => {
       where: { user_id: req.usuario.id },
     });
     if (!analista) return res.status(404).json({ erro: 'Analista nao encontrado' });
+    if (analista.status !== 'APROVADO') {
+      return res.status(403).json({ erro: 'Cadastro de analista pendente de aprovacao' });
+    }
 
     // Busca seguidores ativos que aceitam esse tipo de unidade
     const campoAceita = {
@@ -38,11 +41,10 @@ router.post('/', autenticar, async (req, res) => {
       include: { user: true },
     });
 
-    // Multiplicador por tipo
     const multiplicadores = { U1: 1, U05: 0.5, U025: 0.25 };
     const multiplicador = multiplicadores[tipo_unidade];
 
-    // Cria o sinal no banco
+    // Cria o sinal primeiro para ter o ID disponivel
     const sinal = await prisma.sinal.create({
       data: {
         analista_id: analista.id,
@@ -55,48 +57,40 @@ router.post('/', autenticar, async (req, res) => {
       },
     });
 
-    // Cria as execucoes pendentes para cada seguidor
-    const execucoes = await Promise.all(
+    // Cria todas as execucoes atomicamente em uma transacao
+    const execucoesFinais = await prisma.$transaction(
       seguidores.map((seg) =>
         prisma.execucao.create({
           data: {
             sinal_id: sinal.id,
             seguidor_id: seg.id,
-            valor_apostado: parseFloat((seg.unidade_valor * multiplicador).toFixed(2)),
+            valor_apostado: parseFloat((Number(seg.unidade_valor) * multiplicador).toFixed(2)),
             status: 'PENDENTE',
           },
         })
       )
     );
 
-    // Emite via WebSocket para cada seguidor conectado
+    // Emite via Socket.IO para cada seguidor conectado
     const io = req.app.get('io');
     const usuariosConectados = req.app.get('usuariosConectados');
-    const extensaoConectadas = req.app.get('extensaoConectadas');
 
     for (let i = 0; i < seguidores.length; i++) {
       const seg = seguidores[i];
       const payload = {
         tipo: 'sinal',
         sinal_id: sinal.id,
-        execucao_id: execucoes[i].id,
+        execucao_id: execucoesFinais[i].id,
         casa: sinal.casa,
         evento: sinal.evento,
         mercado: sinal.mercado,
-        odd: sinal.odd,
-        valor_apostado: execucoes[i].valor_apostado,
+        odd: Number(sinal.odd),
+        valor_apostado: Number(execucoesFinais[i].valor_apostado),
       };
 
-      // Painel web (Socket.IO)
       const socketId = usuariosConectados.get(seg.user_id);
       if (socketId) {
         io.to(socketId).emit('sinal', payload);
-      }
-
-      // Extensao de navegador (WebSocket nativo)
-      const extWs = extensaoConectadas?.get(seg.user_id);
-      if (extWs && extWs.readyState === 1) {
-        extWs.send(JSON.stringify(payload));
       }
     }
 
@@ -118,7 +112,7 @@ router.patch('/:id/resultado', autenticar, async (req, res) => {
       return res.status(403).json({ erro: 'Apenas analistas podem encerrar sinais' });
     }
 
-    const { resultado } = req.body; // GANHOU | PERDEU | VOID
+    const { resultado } = req.body;
     if (!['GANHOU', 'PERDEU', 'VOID'].includes(resultado)) {
       return res.status(400).json({ erro: 'Resultado invalido. Use: GANHOU, PERDEU ou VOID' });
     }
@@ -130,30 +124,27 @@ router.patch('/:id/resultado', autenticar, async (req, res) => {
     if (sinal.analista_id !== analista.id) return res.status(403).json({ erro: 'Sinal nao pertence a voce' });
     if (sinal.status === 'ENCERRADO') return res.status(400).json({ erro: 'Sinal ja encerrado' });
 
-    // Atualiza sinal
-    await prisma.sinal.update({
-      where: { id: sinal.id },
-      data: { status: 'ENCERRADO', resultado },
-    });
-
-    // Atualiza execucoes
     const execucoes = await prisma.execucao.findMany({ where: { sinal_id: sinal.id } });
 
-    await Promise.all(
-      execucoes.map((exec) => {
+    // Encerra sinal e atualiza todas as execucoes em uma unica transacao
+    await prisma.$transaction([
+      prisma.sinal.update({
+        where: { id: sinal.id },
+        data: { status: 'ENCERRADO', resultado },
+      }),
+      ...execucoes.map((exec) => {
         let lucro = 0;
-        if (resultado === 'GANHOU') lucro = parseFloat(((sinal.odd - 1) * exec.valor_apostado).toFixed(2));
-        if (resultado === 'PERDEU') lucro = -exec.valor_apostado;
-        if (resultado === 'VOID') lucro = 0;
+        if (resultado === 'GANHOU') lucro = parseFloat(((Number(sinal.odd) - 1) * Number(exec.valor_apostado)).toFixed(2));
+        if (resultado === 'PERDEU') lucro = -Number(exec.valor_apostado);
 
         return prisma.execucao.update({
           where: { id: exec.id },
           data: { status: 'SUCESSO', lucro_prejuizo: lucro },
         });
-      })
-    );
+      }),
+    ]);
 
-    // Recalcula stats do analista
+    // Recalcula stats fora da transacao (faz queries de leitura)
     await recalcularStats(analista.id, sinal.tipo_unidade);
 
     return res.json({ ok: true, resultado });
@@ -163,7 +154,7 @@ router.patch('/:id/resultado', autenticar, async (req, res) => {
   }
 });
 
-// PATCH /api/sinais/:execucaoId/status — extensao reporta resultado da execucao
+// PATCH /api/sinais/:execucaoId/status — reporta resultado da execucao
 router.patch('/:execucaoId/status', autenticar, async (req, res) => {
   try {
     const { status, erro_msg } = req.body;
@@ -219,18 +210,16 @@ async function recalcularStats(analistaId, tipoUnidade) {
   const ganhos = sinaisEncerrados.filter((s) => s.resultado === 'GANHOU').length;
   const winRate = parseFloat(((ganhos / total) * 100).toFixed(2));
 
-  // Rendimento total em % da banca
   let totalApostado = 0;
   let totalLucro = 0;
   for (const s of sinaisEncerrados) {
     for (const e of s.execucoes) {
-      totalApostado += e.valor_apostado;
-      totalLucro += e.lucro_prejuizo || 0;
+      totalApostado += Number(e.valor_apostado);
+      totalLucro += Number(e.lucro_prejuizo) || 0;
     }
   }
   const rendimentoTotal = totalApostado > 0 ? parseFloat(((totalLucro / totalApostado) * 100).toFixed(2)) : 0;
 
-  // Rendimento do mes atual
   const inicioMes = new Date();
   inicioMes.setDate(1);
   inicioMes.setHours(0, 0, 0, 0);
@@ -240,8 +229,8 @@ async function recalcularStats(analistaId, tipoUnidade) {
   let totalLucroMes = 0;
   for (const s of sinaisMes) {
     for (const e of s.execucoes) {
-      totalApostadoMes += e.valor_apostado;
-      totalLucroMes += e.lucro_prejuizo || 0;
+      totalApostadoMes += Number(e.valor_apostado);
+      totalLucroMes += Number(e.lucro_prejuizo) || 0;
     }
   }
   const rendimentoMes = totalApostadoMes > 0 ? parseFloat(((totalLucroMes / totalApostadoMes) * 100).toFixed(2)) : 0;
