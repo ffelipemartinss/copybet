@@ -13,6 +13,7 @@ const PERIODOS = [
 export default function PainelSeguidor() {
   const { usuario, token } = useAuthStore();
   const [periodo, setPeriodo] = useState('hoje');
+  const [assinando, setAssinando] = useState(false);
   const [historico, setHistorico] = useState(null);
   const [config, setConfig] = useState(null);
   const [salvando, setSalvando] = useState(false);
@@ -84,6 +85,28 @@ export default function PainelSeguidor() {
     setConfirmando(null);
   }
 
+  async function assinar() {
+    setAssinando(true);
+    try {
+      const { data } = await api.post('/api/pagamentos/criar-sessao');
+      window.location.href = data.url;
+    } catch {
+      setToast('Erro ao iniciar pagamento. Tente novamente.');
+      setTimeout(() => setToast(null), 4000);
+      setAssinando(false);
+    }
+  }
+
+  async function abrirPortal() {
+    try {
+      const { data } = await api.get('/api/pagamentos/portal');
+      window.location.href = data.url;
+    } catch {
+      setToast('Erro ao abrir portal de pagamento.');
+      setTimeout(() => setToast(null), 4000);
+    }
+  }
+
   async function salvarConfig() {
     setSalvando(true);
     try {
@@ -107,6 +130,35 @@ export default function PainelSeguidor() {
     <Layout>
       <h2 className="text-2xl font-bold mb-1">Meu Painel</h2>
       <p className="text-muted text-sm mb-6">Bem-vindo, {usuario?.nome}</p>
+
+      {/* Banner de plano inativo */}
+      {usuario?.plano?.status !== 'ATIVO' && (
+        <div className="bg-yellow-900 border border-yellow-600 rounded-xl px-4 py-4 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <p className="text-yellow-300 font-semibold text-sm">Plano inativo</p>
+            <p className="text-yellow-400 text-xs mt-0.5">Assine para receber sinais em tempo real e acessar todos os recursos.</p>
+          </div>
+          <button
+            onClick={assinar}
+            disabled={assinando}
+            className="shrink-0 bg-primary text-dark font-bold px-5 py-2 rounded-lg text-sm hover:bg-sky-300 transition-colors disabled:opacity-50"
+          >
+            {assinando ? 'Redirecionando...' : 'Assinar — R$ 99,90/mes'}
+          </button>
+        </div>
+      )}
+
+      {/* Link para gerenciar assinatura ativa */}
+      {usuario?.plano?.status === 'ATIVO' && usuario?.plano?.stripe_subscription_id && (
+        <div className="flex justify-end mb-4">
+          <button
+            onClick={abrirPortal}
+            className="text-xs text-muted hover:text-primary transition-colors underline"
+          >
+            Gerenciar assinatura
+          </button>
+        </div>
+      )}
 
       {/* Toast */}
       {toast && (

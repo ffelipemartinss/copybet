@@ -7,6 +7,7 @@ import Cadastro from './pages/Cadastro';
 import Catalogo from './pages/Catalogo';
 import PainelSeguidor from './pages/PainelSeguidor';
 import PainelAnalista from './pages/PainelAnalista';
+import PagamentoSucesso from './pages/PagamentoSucesso';
 
 function RotaProtegida({ children, role }) {
   const { usuario, token, inicializado } = useAuthStore();
@@ -47,6 +48,7 @@ export default function App() {
         <Route path="/cadastro" element={<Cadastro />} />
         <Route path="/seguidor" element={<RotaProtegida role="SEGUIDOR"><PainelSeguidor /></RotaProtegida>} />
         <Route path="/analista" element={<RotaProtegida role="ANALISTA"><PainelAnalista /></RotaProtegida>} />
+        <Route path="/pagamento/sucesso" element={<RotaProtegida role="SEGUIDOR"><PagamentoSucesso /></RotaProtegida>} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </BrowserRouter>

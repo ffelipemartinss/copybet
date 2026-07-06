@@ -12,6 +12,7 @@ const sinaisRoutes = require('./routes/sinais');
 const seguidoresRoutes = require('./routes/seguidores');
 const analistasRoutes = require('./routes/analistas');
 const feedRoutes = require('./routes/feed');
+const pagamentosRoutes = require('./routes/pagamentos');
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -31,6 +32,10 @@ const io = new Server(httpServer, {
 
 // Middlewares
 app.use(cors({ origin: origensPermitidas }));
+
+// Webhook do Stripe precisa do raw body — registrar ANTES do express.json()
+app.use('/api/pagamentos/webhook', express.raw({ type: 'application/json' }));
+
 app.use(express.json());
 
 // Necessário no Railway (proxy reverso) para o rate limit enxergar o IP real
@@ -60,6 +65,7 @@ app.use('/api/sinais', sinaisRoutes);
 app.use('/api/seguidores', seguidoresRoutes);
 app.use('/api/analistas', analistasRoutes);
 app.use('/api/feed', feedRoutes);
+app.use('/api/pagamentos', pagamentosRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
